@@ -5,7 +5,7 @@ description = "Simple models and tasks for integration testing"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "inspect-ai>=0.3.121",
+  "inspect-ai",
 ]
 
 [project.optional-dependencies]
