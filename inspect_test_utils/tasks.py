@@ -80,3 +80,19 @@ def sometimes_fails_scoring(
             generate(),
         ]
     )
+
+@task
+def say_hello(
+        sample_count: int = 10,
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
+        ],
+        scorer=includes(),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ]
+    )
