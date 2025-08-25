@@ -13,6 +13,8 @@ from inspect_ai.scorer import includes, scorer, Target, Score, Scorer, accuracy,
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
 from inspect_ai.tool import ToolCall, ToolInfo, ToolChoice, bash, python
 
+from inspect_test_utils import scorers
+
 
 @solver
 def failing_solver(
@@ -27,20 +29,6 @@ def failing_solver(
         return state
 
     return solve
-
-
-@scorer(metrics=[accuracy(), stderr()])
-def failing_scorer(
-        fail_on_epochs: list[int] | None = None,
-        failure_rate: float = 0.2,
-) -> Scorer:
-    async def score(state: TaskState, target: Target) -> Score:
-        if fail_on_epochs is None or state.epoch in fail_on_epochs:
-            if random.random() < failure_rate:
-                raise ValueError("Eval failed!")
-        return Score(value=1.0)
-
-    return score
 
 
 @task
@@ -73,7 +61,7 @@ def sometimes_fails_scoring(
         dataset=[
             Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
         ],
-        scorer=failing_scorer(fail_on_epochs=fail_score_on_epochs, failure_rate=failure_rate),
+        scorer=scorers.failing_scorer(fail_on_epochs=fail_score_on_epochs, failure_rate=failure_rate),
         sandbox="docker",
         solver=[
             use_tools(bash(), python()),
@@ -83,13 +71,30 @@ def sometimes_fails_scoring(
 
 @task
 def say_hello(
-        sample_count: int = 10,
+        sample_count: int = 1,
 ) -> Task:
     return Task(
         dataset=[
             Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
         ],
         scorer=includes(),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ]
+    )
+
+@task
+def guess_number(
+        sample_count: int = 1,
+        target: str = "42.7",
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Guess the number", target=target) for i in range(sample_count)
+        ],
+        scorer=scorers.closeness_log(),
         sandbox="docker",
         solver=[
             use_tools(bash(), python()),
