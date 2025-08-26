@@ -51,7 +51,7 @@ class HardcodedModelAPI(ModelAPI):
             tool_choice: ToolChoice,
             config: GenerateConfig
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        index = len(input) // 2 - 1
+        index = (len(input) - 1) // 2
         next_tool_call_index = int(index) % len(self.tool_calls) if self.tool_calls else 0
         repetition_count = int(index) // len(self.tool_calls) if self.tool_calls else 1
         next_tool_call = self.tool_calls[next_tool_call_index] if next_tool_call_index < len(self.tool_calls) else None
