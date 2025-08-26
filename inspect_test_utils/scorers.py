@@ -1,3 +1,4 @@
+import logging
 import math
 import random
 from asyncio import sleep
@@ -43,4 +44,26 @@ def closeness_log() -> Scorer:
         rel = abs(a - b) / (abs(a) + abs(b))  # denominator is 0 only when a==b==0 (handled)
         return Score(value=1.0 / (1.0 + math.log1p(rel)))
 
+    return score
+
+
+@scorer(metrics=[accuracy(), stderr()])
+def hardcoded_scorer(
+        hardcoded_score: Score | None = None,
+        hardcoded_score_by_sample_id_and_epoch: dict[str, dict[int, dict[str, Any]]] | None = None,
+) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        if hardcoded_score is not None:
+            score_dict = hardcoded_score
+        else:
+            score_dict = hardcoded_score_by_sample_id_and_epoch[state.sample_id][state.epoch]
+        if hardcoded_score.get("value") == "NaN":
+            hardcoded_score["value"] = math.nan
+        logging.info(f"Hardcoded score: {score_dict}")
+        return Score.model_validate(score_dict)
+
+    if hardcoded_score is None and hardcoded_score_by_sample_id_and_epoch is None:
+        raise ValueError("hardcoded_score or hardcoded_score_by_sample_id_and_epoch must be specified.")
+    if hardcoded_score is not None and hardcoded_score_by_sample_id_and_epoch is not None:
+        raise ValueError("hardcoded_score and hardcoded_score_by_sample_id_and_epoch cannot both be specified.")
     return score

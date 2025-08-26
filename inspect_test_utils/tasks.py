@@ -2,10 +2,11 @@ import os
 import random
 import tempfile
 import textwrap
+from typing import Any
 
 from inspect_ai import task, Task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
+from inspect_ai.scorer import includes, Score
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
 from inspect_ai.tool import bash, python
 
@@ -65,6 +66,26 @@ def sometimes_fails_scoring(
         ]
     )
 
+
+@task
+def hardcoded_score(
+        sample_count: int = 10,
+        hardcoded_score: Score | None = None,
+        hardcoded_score_by_sample_id_and_epoch: dict[str, dict[int, dict[str, Any]]] | None = None,
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
+        ],
+        scorer=scorers.hardcoded_scorer(hardcoded_score, hardcoded_score_by_sample_id_and_epoch),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ]
+    )
+
+
 @task
 def say_hello(
         sample_count: int = 1,
@@ -80,6 +101,7 @@ def say_hello(
             generate(),
         ]
     )
+
 
 @task
 def guess_number(
