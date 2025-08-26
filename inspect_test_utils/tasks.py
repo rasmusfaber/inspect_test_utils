@@ -2,8 +2,9 @@ import os
 import random
 import tempfile
 import textwrap
-from typing import Any
+from typing import Any, Literal
 
+import yaml
 from inspect_ai import task, Task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, Score
@@ -122,33 +123,57 @@ def guess_number(
 
 
 @task
-def limited_sandbox(
+def configurable_sandbox(
         sample_count: int = 1,
-        cpu_limit: float = 0.5,
-        memory_limit: str = "2G",
-        storage_limit: str = "2G",
+        cpu: float = 0.5,
+        memory: str = "2G",
+        storage: str = "2G",
+        gpu: int | None = None,
+        gpu_model: Literal["t4", "h100"] | None = None,
+        allow_internet: bool = False,
 ) -> Task:
     # Write a compose.yaml to a temporary file:
     tmpdir = tempfile.mkdtemp(prefix="inspect_test_utils_")
     values_yaml_path = os.path.join(tmpdir, "values.yaml")
-    values_yaml = textwrap.dedent(f"""
-        services:
-          default:
-            image: python:3.12-bookworm
-            args: 
-              - tail
-              - -f 
-              - /dev/null
-            resources:
-              requests:
-                cpu: {cpu_limit}
-                memory: {memory_limit}
-                ephemeral-storage: {storage_limit}
-              limits:
-                cpu: {cpu_limit}
-                memory: {memory_limit}
-                ephemeral-storage: {storage_limit}
-    """).strip()
+    values: dict[str, Any] = {
+        "services": {
+            "default": {
+                "image": "python:3.12-bookworm",
+                "args": ["tail", "-f", "/dev/null"],
+                "resources": {
+                    "requests": {
+                        "cpu": cpu,
+                        "memory": memory,
+                        "ephemeral-storage": storage,
+                    },
+                    "limits": {
+                        "cpu": cpu,
+                        "memory": memory,
+                        "ephemeral-storage": storage,
+                    }
+                }
+            }
+        }
+    }
+    if gpu is not None:
+        values["services"]["default"]["image"] = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
+        values["services"]["default"]["runtimeClassName"] = "nvidia"
+        values["services"]["default"]["resources"]["requests"]["nvidia.com/gpu"] = gpu
+        values["services"]["default"]["resources"]["limits"]["nvidia.com/gpu"] = gpu
+        values["services"]["default"]["env"] = [
+            {"name": "NVIDIA_DRIVER_CAPABILITIES", "value": "compute,utility"}
+        ]
+        if gpu_model == "t4":
+            values["services"]["default"]["nodeSelector"] = {
+                "karpenter.k8s.aws/instance-gpu-name": "t4"
+            }
+        elif gpu_model == "h100":
+            values["services"]["default"]["nodeSelector"] = {
+                "nvidia.com/gpu.product": "NVIDIA-H100-80GB-HBM3"
+            }
+    if allow_internet:
+        values["allowEntities"] = ["world"]
+    values_yaml = yaml.dump(values)
     with open(values_yaml_path, "w", encoding="utf-8") as f:
         f.write(values_yaml)
 
