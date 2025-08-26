@@ -1,17 +1,13 @@
+import os
 import random
-from asyncio import sleep
-from typing import Any, TypedDict, Callable
+import tempfile
+import textwrap
 
 from inspect_ai import task, Task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import (
-    ChatMessageAssistant,
-    ModelOutput,
-    ChatCompletionChoice, modelapi, ModelAPI, ChatMessage, GenerateConfig, ModelCall,
-)
-from inspect_ai.scorer import includes, scorer, Target, Score, Scorer, accuracy, stderr
+from inspect_ai.scorer import includes
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
-from inspect_ai.tool import ToolCall, ToolInfo, ToolChoice, bash, python
+from inspect_ai.tool import bash, python
 
 from inspect_test_utils import scorers
 
@@ -96,6 +92,50 @@ def guess_number(
         ],
         scorer=scorers.closeness_log(),
         sandbox="docker",
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ]
+    )
+
+
+@task
+def limited_sandbox(
+        sample_count: int = 1,
+        cpu_limit: float = 0.5,
+        memory_limit: str = "2G",
+        storage_limit: str = "2G",
+) -> Task:
+    # Write a compose.yaml to a temporary file:
+    tmpdir = tempfile.mkdtemp(prefix="inspect_test_utils_")
+    values_yaml_path = os.path.join(tmpdir, "values.yaml")
+    values_yaml = textwrap.dedent(f"""
+        services:
+          default:
+            image: python:3.12-bookworm
+            args: 
+              - tail
+              - -f 
+              - /dev/null
+            resources:
+              requests:
+                cpu: {cpu_limit}
+                memory: {memory_limit}
+                ephemeral-storage: {storage_limit}
+              limits:
+                cpu: {cpu_limit}
+                memory: {memory_limit}
+                ephemeral-storage: {storage_limit}
+    """).strip()
+    with open(values_yaml_path, "w", encoding="utf-8") as f:
+        f.write(values_yaml)
+
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
+        ],
+        scorer=includes(),
+        sandbox=("k8s", values_yaml_path),
         solver=[
             use_tools(bash(), python()),
             generate(),
