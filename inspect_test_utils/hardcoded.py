@@ -1,7 +1,8 @@
 import json
 from asyncio import sleep
-from typing import Any, TypedDict
+from typing import Any, TypedDict, override
 
+import inspect_ai._util.constants
 from inspect_ai.model import (
     ChatMessageAssistant,
     ModelOutput,
@@ -26,12 +27,14 @@ class HardcodedModelAPI(ModelAPI):
             repetitions: int = 1,
             answer: str = "done",
             delay: float = 0.0,
+            concurrency: int = inspect_ai._util.constants.DEFAULT_MAX_CONNECTIONS,
     ):
         super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, config=config)
         self.tool_calls = self._parse_tool_calls(tool_calls)
         self.repetitions = repetitions
         self.answer = answer
         self.delay = delay
+        self.concurrency = concurrency
 
     def _parse_tool_calls(self, tool_calls: list[HardcodedToolCall] | str | list[str]| None) -> list[HardcodedToolCall]:
         if tool_calls is None:
@@ -44,6 +47,10 @@ class HardcodedModelAPI(ModelAPI):
             return [HardcodedToolCall(tool_name='bash', tool_args={'cmd': cmd}) for cmd in tool_calls]
         return tool_calls
 
+    def max_connections(self) -> int:
+        return self.concurrency
+
+    @override
     async def generate(
             self,
             input: list[ChatMessage],
