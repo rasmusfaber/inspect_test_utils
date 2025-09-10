@@ -45,6 +45,11 @@ class HardcodedModelAPI(ModelAPI):
             return []
         if isinstance(tool_calls[0], str):
             return [HardcodedToolCall(tool_name='bash', tool_args={'cmd': cmd}) for cmd in tool_calls]
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                raise ValueError(f"Invalid tool call: {tool_call}")
+            if "tool_name" not in tool_call or "tool_args" not in tool_call:
+                raise ValueError(f"Invalid tool call: {tool_call}")
         return tool_calls
 
     def max_connections(self) -> int:
