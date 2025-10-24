@@ -36,13 +36,15 @@ class HardcodedModelAPI(ModelAPI):
             concurrency: int = inspect_ai._util.constants.DEFAULT_MAX_CONNECTIONS,
             auth_failure_chance: float = 0.0,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, config=config)
+        super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, api_key_vars=["ANTHROPIC_API_KEY"], config=config)
         self.tool_calls = self._parse_tool_calls(tool_calls) or self._parse_tool_call_file(tool_call_file)
         self.repetitions = repetitions
         self.answer = answer
         self.delay = delay
         self.concurrency = concurrency
         self.auth_failure_chance = auth_failure_chance
+
+
 
     def _parse_tool_calls(self, tool_calls: list[HardcodedToolCall] | str | list[str] | None) -> list[
         HardcodedToolCall]:
