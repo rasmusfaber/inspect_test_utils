@@ -130,6 +130,10 @@ class HardcodedModelAPI(ModelAPI):
         )
 
     @override
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, HardcodedModelAuthFailure)
+
+    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         return isinstance(ex, HardcodedModelAuthFailure)
 
