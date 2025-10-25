@@ -1,3 +1,4 @@
+import asyncio
 import os
 import random
 import tempfile
@@ -6,10 +7,12 @@ from typing import Any, Literal
 
 import yaml
 from inspect_ai import task, Task
+from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, Score
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
-from inspect_ai.tool import bash, python
+from inspect_ai.tool import bash, python, tool, Tool
+from inspect_ai.tool._tools._execute import code_viewer
 
 from inspect_test_utils import scorers
 
@@ -119,6 +122,60 @@ def guess_number(
             use_tools(bash(), python()),
             generate(),
         ]
+    )
+
+
+@task
+def guess_number(
+        sample_count: int = 1,
+        target: str = "42.7",
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Guess the number", target=target) for i in range(sample_count)
+        ],
+        scorer=scorers.closeness_log(),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ]
+    )
+
+
+@task
+def guess_number_keep_guessing(
+        sample_count: int = 1,
+        target: str = "42.7",
+        delay: float | None = None,
+) -> Task:
+    @tool
+    def try_guess() -> Tool:
+        async def guess(guess: str) -> bool:
+            """Try guessing the number.
+
+            Use this tool to keep guessing until you get it right.
+
+            Args:
+              guess: The guess to try.
+
+            Returns:
+              A boolean indicating whether the guess was correct.
+            """
+
+            if delay:
+                await asyncio.sleep(delay)
+            return float(guess) == float(target)
+
+        return guess
+
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Guess the number. Keep guessing until you get it right.", target=target) for i in range(sample_count)
+        ],
+        scorer=scorers.closeness_log(),
+        sandbox="local",
+        solver=react(tools=[try_guess()]),
     )
 
 
