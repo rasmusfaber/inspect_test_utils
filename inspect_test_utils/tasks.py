@@ -174,7 +174,7 @@ def guess_number_keep_guessing(
             Sample(id=str(i), input="Guess the number. Keep guessing until you get it right.", target=target) for i in range(sample_count)
         ],
         scorer=scorers.closeness_log(),
-        sandbox="local",
+        sandbox="docker",
         solver=react(tools=[try_guess()]),
     )
 
