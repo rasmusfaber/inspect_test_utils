@@ -1,3 +1,6 @@
+import datetime
+import logging
+import os
 import random
 from asyncio import sleep
 from typing import Any, TypedDict, override
@@ -10,6 +13,11 @@ from inspect_ai.model import (
     ChatCompletionChoice, modelapi, ModelAPI, ChatMessage, GenerateConfig, ModelCall,
 )
 from inspect_ai.tool import ToolCall, ToolInfo, ToolChoice
+from joserfc import jwt, jwk
+
+from inspect_test_utils import hooks
+
+log = logging.getLogger(__name__)
 
 
 class HardcodedToolCall(TypedDict):
@@ -36,15 +44,27 @@ class HardcodedModelAPI(ModelAPI):
             concurrency: int = inspect_ai._util.constants.DEFAULT_MAX_CONNECTIONS,
             auth_failure_chance: float = 0.0,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, api_key_vars=["ANTHROPIC_API_KEY"], config=config)
+        super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, api_key_vars=["OPENAI_API_KEY"], config=config)
         self.tool_calls = self._parse_tool_calls(tool_calls) or self._parse_tool_call_file(tool_call_file)
         self.repetitions = repetitions
         self.answer = answer
         self.delay = delay
         self.concurrency = concurrency
         self.auth_failure_chance = auth_failure_chance
+        self.initialize()
 
-
+    def initialize(self) -> None:
+        super().initialize()
+        api_key = self.api_key or os.environ['OPENAI_API_KEY']
+        #log.info("Initialize called. API key is now %s", api_key)
+        try:
+            key_set = jwk.KeySet.import_key_set({"keys":[{"kty":"RSA","alg":"RS256","kid":"Inp_CcloTJyZYGzUH1lVSM7rS6MMAp2f4VSsv1Bcyvs","use":"sig","e":"AQAB","n":"yINya8skpnL3eEelENTNVu9NsI79-YvkjbBFESp_10I57BcmCUYqn79WmM4R-566Le1pet5kJEXs6sj48MBB66JkhmrQ0ybTLCU_5kKITLjVqXtDbyzdxTu_FcEz0bWB66xEBeCuuT6wPGh57s5dgQXhxHPrkn-TGWl1bHMGmBplGkTAa3IqgqVl08lBMMKMdN77qLCySEeE1RLihRfq4DfhF-Nczt14ZzV8m1kcIjTm9dBqd8SHyXNO0x43HxUJE23sXMECWlLc8y8oGCXMZZ65lj5ccU7R0gD65geg4RfxtRHb36Py43_j1QUl8jZVAvfYHxFR0j6xPLHPslymVw"}]})
+            decoded_token = jwt.decode(api_key, key=key_set)
+            log.info("Decoded JWT expiration: %s", datetime.datetime.fromtimestamp(
+                decoded_token.claims.get("exp"), tz=datetime.timezone.utc
+            ).isoformat(timespec="seconds"))
+        except Exception as e:
+            log.error("Failed to decode API key as JWT: %s", e)
 
     def _parse_tool_calls(self, tool_calls: list[HardcodedToolCall] | str | list[str] | None) -> list[
         HardcodedToolCall]:
