@@ -1,19 +1,10 @@
 import logging
 import math
 import random
-from asyncio import sleep
-from typing import Any, TypedDict, Callable
+from typing import Any
 
-from inspect_ai import task, Task
-from inspect_ai.dataset import Sample
-from inspect_ai.model import (
-    ChatMessageAssistant,
-    ModelOutput,
-    ChatCompletionChoice, modelapi, ModelAPI, ChatMessage, GenerateConfig, ModelCall,
-)
-from inspect_ai.scorer import includes, scorer, Target, Score, Scorer, accuracy, stderr
-from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
-from inspect_ai.tool import ToolCall, ToolInfo, ToolChoice, bash, python
+from inspect_ai.scorer import scorer, Target, Score, Scorer, accuracy, stderr
+from inspect_ai.solver import TaskState
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -33,7 +24,10 @@ def failing_scorer(
 @scorer(metrics=[accuracy(), stderr()])
 def closeness_log() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        answer_str = state.output.completion
+        if state.messages[-1].tool_calls and state.messages[-1].tool_calls[-1].function == "submit":
+            answer_str = state.messages[-1].tool_calls[-1].arguments["answer"]
+        else:
+            answer_str = state.output.completion
         try:
             a = float(answer_str)
         except ValueError:
