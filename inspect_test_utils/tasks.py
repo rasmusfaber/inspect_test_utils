@@ -90,13 +90,14 @@ def hardcoded_score(
 @task
 def say_hello(
         sample_count: int = 1,
+        local: bool = False,
 ) -> Task:
     return Task(
         dataset=[
             Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
         ],
         scorer=includes(),
-        sandbox="docker",
+        sandbox="local" if local else "docker",
         solver=[
             use_tools(bash(), python()),
             generate(),
@@ -108,13 +109,14 @@ def say_hello(
 def guess_number(
         sample_count: int = 1,
         target: str = "42.7",
+        local: bool = False,
 ) -> Task:
     return Task(
         dataset=[
             Sample(id=str(i), input="Guess the number", target=target) for i in range(sample_count)
         ],
         scorer=scorers.closeness_log(),
-        sandbox="docker",
+        sandbox="local" if local else "docker",
         solver=[
             use_tools(bash(), python()),
             generate(),
