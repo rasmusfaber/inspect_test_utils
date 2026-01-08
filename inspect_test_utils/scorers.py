@@ -27,8 +27,8 @@ def closeness_log() -> Scorer:
         answer_str = state.output.completion
         try:
             a = float(answer_str)
-        except ValueError:
-            return Score(value=0.0)
+        except ValueError as e:
+            return Score(value=0.0, explanation=str(e))
         b = float(target.text)
         if a == b:
             return Score(value=1.0)
