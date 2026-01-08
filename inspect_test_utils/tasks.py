@@ -159,7 +159,12 @@ def guess_number_keep_guessing(
 
             if delay:
                 await asyncio.sleep(delay)
-            return float(guess) == float(target)
+            if guess == target:
+                return True
+            try:
+                return float(guess) == float(target)
+            except ValueError:
+                return False
 
         return guess
 
