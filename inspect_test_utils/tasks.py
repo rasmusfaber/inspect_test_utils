@@ -143,6 +143,24 @@ def guess_number(
 
 
 @task
+def timeout(
+        sample_count: int = 1,
+        timeout: int = 3600,
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input=f"You can run bash tasks with a very long timeout ({timeout}s). Submit done to end the task.", target="done") for i in range(sample_count)
+        ],
+        scorer=includes(),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(timeout=timeout)),
+            generate(),
+        ]
+    )
+
+
+@task
 def configurable_sandbox(
         sample_count: int = 1,
         cpu: float = 0.5,
