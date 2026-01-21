@@ -1,7 +1,6 @@
 import os
 import random
 import tempfile
-import textwrap
 from typing import Any, Literal
 
 import yaml
@@ -9,7 +8,7 @@ from inspect_ai import task, Task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, Score
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
-from inspect_ai.tool import bash, python
+from inspect_ai.tool import bash, python, text_editor, bash_session, think
 
 from inspect_test_utils import scorers
 
@@ -185,6 +184,23 @@ def configurable_sandbox(
         sandbox=("k8s", values_yaml_path),
         solver=[
             use_tools(bash(), python()),
+            generate(),
+        ]
+    )
+
+
+@task
+def say_hello_with_tools(
+        sample_count: int = 1,
+) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Say hello", target="hello") for i in range(sample_count)
+        ],
+        scorer=includes(),
+        sandbox="docker",
+        solver=[
+            use_tools(bash(), python(), text_editor(), bash_session(), think()),
             generate(),
         ]
     )
