@@ -77,6 +77,7 @@ def run_eval_test(
     *,
     limit: int | None = 1,
     model: str = "mockllm/model",
+    model_args: dict[str, Any] | None = None,
     sandbox_cleanup: bool = True,
     max_messages: int | None = None,
     **eval_kwargs: Any,
@@ -93,6 +94,11 @@ def run_eval_test(
         solver: Custom solver(s) to use. If None, uses the task's default solver.
         limit: Number of samples to run (default 1 for fast tests).
         model: Model to use (default mockllm/model for no API calls).
+            Use "hardcoded/test" with model_args for HardcodedModelAPI.
+        model_args: Arguments passed to the model provider. For HardcodedModelAPI:
+            - tool_calls: List of commands (strings) or HardcodedToolCall dicts
+            - repetitions: Number of times to cycle through commands (default 1)
+            - answer: Final answer content (default "done")
         sandbox_cleanup: Whether to cleanup sandbox after test (default True).
         max_messages: Override max_messages for the task.
         **eval_kwargs: Additional kwargs passed to eval().
@@ -100,18 +106,18 @@ def run_eval_test(
     Returns:
         EvalTestResult with score and metadata.
 
-    Example:
-        from inspect_eval_testing import run_eval_test, hardcoded_bash_solver
+    Example using hardcoded solver (bypasses model):
+        result = run_eval_test(
+            code_repair,
+            solver=hardcoded_bash_solver(["sed -i 's/bug/fix/' file.py"]),
+        )
 
-        def test_code_repair():
-            result = run_eval_test(
-                code_repair,
-                solver=hardcoded_bash_solver([
-                    "sed -i 's/bug/fix/' /workspace/code.py",
-                ]),
-                expected_score=1.0,
-            )
-            assert result.score == 1.0
+    Example using HardcodedModelAPI (tests full agent loop):
+        result = run_eval_test(
+            code_repair,
+            model="hardcoded/test",
+            model_args={"tool_calls": ["sed -i 's/bug/fix/' file.py"]},
+        )
     """
     # Get the task if it's a callable
     task_instance = task() if callable(task) else task
@@ -137,12 +143,19 @@ def run_eval_test(
         )
 
     try:
+        # Build eval kwargs, adding model_args if provided
+        call_kwargs: dict[str, Any] = {
+            "limit": limit,
+            "sandbox_cleanup": sandbox_cleanup,
+            **eval_kwargs,
+        }
+        if model_args is not None:
+            call_kwargs["model_args"] = model_args
+
         logs = eval(
             task_instance,
             model=model,
-            limit=limit,
-            sandbox_cleanup=sandbox_cleanup,
-            **eval_kwargs,
+            **call_kwargs,
         )
 
         if not logs:
@@ -160,13 +173,17 @@ def run_eval_test_async(
     *,
     limit: int | None = 1,
     model: str = "mockllm/model",
+    model_args: dict[str, Any] | None = None,
     sandbox_cleanup: bool = True,
+    max_messages: int | None = None,
     **eval_kwargs: Any,
 ) -> EvalTestResult:
     """Async version of run_eval_test.
 
     Same as run_eval_test but uses eval_async internally.
     Use this in async test functions.
+
+    See run_eval_test() for full parameter documentation.
     """
     import asyncio
 
@@ -175,7 +192,17 @@ def run_eval_test_async(
     async def _run() -> EvalTestResult:
         task_instance = task() if callable(task) else task
 
-        if solver is not None:
+        # Override max_messages if provided
+        if max_messages is not None:
+            task_instance = Task(
+                dataset=task_instance.dataset,
+                solver=task_instance.solver if solver is None else solver,
+                scorer=task_instance.scorer,
+                max_messages=max_messages,
+                sandbox=task_instance.sandbox,
+                metadata=task_instance.metadata,
+            )
+        elif solver is not None:
             task_instance = Task(
                 dataset=task_instance.dataset,
                 solver=solver,
@@ -186,12 +213,19 @@ def run_eval_test_async(
             )
 
         try:
+            # Build eval kwargs, adding model_args if provided
+            call_kwargs: dict[str, Any] = {
+                "limit": limit,
+                "sandbox_cleanup": sandbox_cleanup,
+                **eval_kwargs,
+            }
+            if model_args is not None:
+                call_kwargs["model_args"] = model_args
+
             logs = await eval_async(
                 task_instance,
                 model=model,
-                limit=limit,
-                sandbox_cleanup=sandbox_cleanup,
-                **eval_kwargs,
+                **call_kwargs,
             )
 
             if not logs:
