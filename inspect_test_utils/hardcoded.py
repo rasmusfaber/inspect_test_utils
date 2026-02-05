@@ -1,5 +1,7 @@
 import json
+import random
 from asyncio import sleep
+from collections.abc import Callable
 from typing import Any, TypedDict, override
 
 import inspect_ai._util.constants
@@ -28,6 +30,7 @@ class HardcodedModelAPI(ModelAPI):
             answer: str = "done",
             delay: float = 0.0,
             concurrency: int = inspect_ai._util.constants.DEFAULT_MAX_CONNECTIONS,
+            failure_rate: float = 0.0,
     ):
         super().__init__(model_name=model_name, base_url=base_url, api_key=api_key, config=config)
         self.tool_calls = self._parse_tool_calls(tool_calls)
@@ -35,10 +38,22 @@ class HardcodedModelAPI(ModelAPI):
         self.answer = answer
         self.delay = delay
         self.concurrency = concurrency
+        self.failure_rate = failure_rate
 
     def _parse_tool_calls(self, tool_calls: list[HardcodedToolCall] | str | list[str]| None) -> list[HardcodedToolCall]:
         if tool_calls is None:
             return []
+        if isinstance(tool_calls, list) and isinstance(tool_calls[0], str):
+            try:
+                tool_calls = json.loads(",".join(tool_calls))
+            except json.JSONDecodeError:
+                pass
+        elif isinstance(tool_calls, str):
+            try:
+                tool_calls = json.loads(tool_calls)
+            except json.JSONDecodeError:
+                pass
+
         if isinstance(tool_calls, str):
             tool_calls=[tool_calls]
         if len(tool_calls) == 0:
@@ -61,14 +76,27 @@ class HardcodedModelAPI(ModelAPI):
             input: list[ChatMessage],
             tools: list[ToolInfo],
             tool_choice: ToolChoice,
-            config: GenerateConfig
+            config: GenerateConfig,
+            record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         index = (len(input) - 1) // 2
         next_tool_call_index = int(index) % len(self.tool_calls) if self.tool_calls else 0
         repetition_count = int(index) // len(self.tool_calls) if self.tool_calls else 1
         next_tool_call = self.tool_calls[next_tool_call_index] if next_tool_call_index < len(self.tool_calls) else None
+
+        model_call = ModelCall.create(request={"hardcoded":"test"}, response=None, filter=None, time=None)
+        record_call(model_call)
+
         if self.delay > 0:
             await sleep(self.delay)
+
+        if random.random() < self.failure_rate:
+            model_call.response = {"failure": "test"}
+            try:
+                raise Exception("Failure")
+            except Exception as e:
+                return e, model_call
+            #raise Exception("Failure2")
 
         if repetition_count >= self.repetitions:
             submit_tool = next((tool for tool in tools if tool.name == "submit"), None)
@@ -106,9 +134,13 @@ class HardcodedModelAPI(ModelAPI):
             )
             choice = ChatCompletionChoice(message=message)
 
+        model_call.response = {"test": "hardcoded"}
         return ModelOutput(
             model="hardcoded", choices=[choice]
-        )
+        ), model_call
+
+    def should_retry(self, ex: Exception) -> bool:
+        return True
 
 
 @modelapi(name="hardcoded")

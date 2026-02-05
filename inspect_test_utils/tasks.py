@@ -10,9 +10,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, Score
 from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
 from inspect_ai.tool import bash, python
+from textual.widgets import Tooltip
 
 from inspect_test_utils import scorers
-
+from inspect_ai.tool import tool, Tool
 
 @solver
 def failing_solver(
@@ -104,17 +105,38 @@ def say_hello(
     )
 
 
+@tool
+def is_higher(target: str) -> Tool:
+    def is_higher(input: str) -> bool:
+        """
+        Check if the input is higher than the target.
+
+        Args
+            input (str): The input number.
+
+        Returns:
+             bool: True if the input is higher than the target, False otherwise.
+        """
+        return float(input) > float(target)
+
+    return is_higher
+
 @task
 def guess_number(
         sample_count: int = 1,
         target: str = "42.7",
+        local: bool = False,
 ) -> Task:
+    if local:
+        tools = [is_higher(target)]
+    else:
+        tools = [bash(), python()]
     return Task(
         dataset=[
             Sample(id=str(i), input="Guess the number", target=target) for i in range(sample_count)
         ],
         scorer=scorers.closeness_log(),
-        sandbox="docker",
+        sandbox=None if local else "docker",
         solver=[
             use_tools(bash(), python()),
             generate(),
