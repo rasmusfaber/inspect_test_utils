@@ -24,11 +24,12 @@ def failing_scorer(
 @scorer(metrics=[accuracy(), stderr()])
 def closeness_log() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        answer_str = state.output.completion
+        completion = state.output.completion
+        answer_str = completion.strip().split()[-1]
         try:
             a = float(answer_str)
-        except ValueError:
-            return Score(value=0.0)
+        except ValueError as e:
+            return Score(value=0.0, explanation=str(e))
         b = float(target.text)
         if a == b:
             return Score(value=1.0)

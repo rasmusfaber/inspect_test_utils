@@ -1,17 +1,18 @@
+import asyncio
 import os
 import random
 import tempfile
 from typing import Any, Literal
 
 import yaml
-from inspect_ai import task, Task
+from inspect_ai import Task, task
+from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes, Score
-from inspect_ai.solver import solver, TaskState, Generate, use_tools, generate
-from inspect_ai.tool import bash, python, text_editor, bash_session, think
+from inspect_ai.scorer import Score, includes
+from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
+from inspect_ai.tool import Tool, bash, bash_session, python, text_editor, think, tool
 
 from inspect_test_utils import scorers
-from inspect_ai.tool import tool, Tool
 
 
 @solver
@@ -100,6 +101,7 @@ def hardcoded_score(
 @task
 def say_hello(
     sample_count: int = 1,
+    local: bool = False,
 ) -> Task:
     return Task(
         dataset=[
@@ -107,7 +109,7 @@ def say_hello(
             for i in range(sample_count)
         ],
         scorer=includes(),
-        sandbox="docker",
+        sandbox="local" if local else "docker",
         solver=[
             use_tools(bash(), python()),
             generate(),
@@ -148,11 +150,58 @@ def guess_number(
             for i in range(sample_count)
         ],
         scorer=scorers.closeness_log(),
-        sandbox=None if local else "docker",
+        sandbox="local" if local else "docker",
         solver=[
             use_tools(*tools),
             generate(),
         ],
+    )
+
+
+@task
+def guess_number_keep_guessing(
+    sample_count: int = 1,
+    target: str = "42.7",
+    delay: float | None = None,
+    local: bool = False,
+) -> Task:
+    @tool
+    def try_guess() -> Tool:
+        async def guess(guess: str) -> bool:
+            """Try guessing the number.
+
+            Use this tool to keep guessing until you get it right.
+
+            Args:
+              guess: The guess to try.
+
+            Returns:
+              A boolean indicating whether the guess was correct.
+            """
+
+            if delay:
+                await asyncio.sleep(delay)
+            if guess == target:
+                return True
+            try:
+                return float(guess) == float(target)
+            except ValueError:
+                return False
+
+        return guess
+
+    return Task(
+        dataset=[
+            Sample(
+                id=str(i),
+                input="Guess the number. Keep guessing until you get it right.",
+                target=target,
+            )
+            for i in range(sample_count)
+        ],
+        scorer=scorers.closeness_log(),
+        sandbox="local" if local else "docker",
+        solver=react(tools=[try_guess()]),
     )
 
 

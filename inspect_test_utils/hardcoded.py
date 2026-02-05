@@ -105,7 +105,8 @@ class HardcodedModelAPI(ModelAPI):
         model_call = ModelCall.create(
             request={"hardcoded": "test"}, response=None, filter=None, time=None
         )
-        record_call(model_call)
+        if record_call:
+            record_call(model_call)
 
         if self.delay > 0:
             await sleep(self.delay)
@@ -116,7 +117,6 @@ class HardcodedModelAPI(ModelAPI):
                 raise Exception("Failure")
             except Exception as e:
                 return e, model_call
-            # raise Exception("Failure2")
 
         if repetition_count >= self.repetitions:
             submit_tool = next((tool for tool in tools if tool.name == "submit"), None)
