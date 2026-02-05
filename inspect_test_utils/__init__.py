@@ -14,7 +14,11 @@ from inspect_test_utils.assertions import (
     assert_files_exist,
     assert_score_in_range,
 )
-from inspect_test_utils.eval_runner import EvalTestResult, run_eval_test, run_eval_test_async
+from inspect_test_utils.eval_runner import (
+    EvalTestResult,
+    run_eval_test,
+    run_eval_test_async,
+)
 from inspect_test_utils.solvers import (
     combined_solver,
     hardcoded_bash_solver,
