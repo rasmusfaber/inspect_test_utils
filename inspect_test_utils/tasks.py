@@ -313,3 +313,61 @@ def say_hello_with_tools(
             generate(),
         ],
     )
+
+
+@task
+def network_sandbox(
+    sample_count: int = 1,
+    network_mode: Literal["none", "bridge", "bridge_network_pattern"] | None = None,
+    services: list[str] | None = None,
+) -> Task:
+    """Task for testing network configurations in Docker sandbox.
+
+    Args:
+        sample_count: Number of samples
+        network_mode:
+            - None/"none": No network access
+            - "bridge": Uses network_mode: bridge
+            - "bridge_network_pattern": Uses shared bridge network pattern
+        services: List of service names (default: ["default"])
+    """
+    if services is None:
+        services = ["default"]
+
+    compose: dict[str, Any] = {"services": {}}
+
+    for service_name in services:
+        service_config: dict[str, Any] = {
+            "image": "python:3.12-bookworm",
+            "entrypoint": ["python", "-m", "http.server", "8000"],
+        }
+
+        if network_mode is None or network_mode == "none":
+            service_config["network_mode"] = "none"
+        elif network_mode == "bridge":
+            service_config["network_mode"] = "bridge"
+        elif network_mode == "bridge_network_pattern":
+            service_config["networks"] = ["shared"]
+
+        compose["services"][service_name] = service_config
+
+    if network_mode == "bridge_network_pattern":
+        compose["networks"] = {"shared": {"driver": "bridge"}}
+
+    tmpdir = tempfile.mkdtemp(prefix="inspect_test_utils_network_sandbox_")
+    compose_yaml_path = os.path.join(tmpdir, "compose.yaml")
+    with open(compose_yaml_path, "w", encoding="utf-8") as f:
+        yaml.dump(compose, f)
+
+    return Task(
+        dataset=[
+            Sample(id=str(i), input="Say hello", target="hello")
+            for i in range(sample_count)
+        ],
+        scorer=includes(),
+        sandbox=("docker", compose_yaml_path),
+        solver=[
+            use_tools(bash(), python()),
+            generate(),
+        ],
+    )
