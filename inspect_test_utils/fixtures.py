@@ -81,7 +81,8 @@ skip_sandbox = pytest.mark.skipif(
 )
 
 
-def requires_docker() -> Generator[None]:
+@pytest.fixture
+def requires_docker() -> Generator[None, None, None]:
     """Fixture that skips test if Docker is not available."""
     import subprocess
 

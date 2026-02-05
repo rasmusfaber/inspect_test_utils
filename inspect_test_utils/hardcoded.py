@@ -52,9 +52,19 @@ class HardcodedModelAPI(ModelAPI):
     ) -> list[HardcodedToolCall]:
         if tool_calls is None:
             return []
-        if isinstance(tool_calls, list) and isinstance(tool_calls[0], str):
+
+        # Handle empty list early
+        if isinstance(tool_calls, list) and len(tool_calls) == 0:
+            return []
+
+        # Try to parse JSON if it's a list of strings (could be JSON fragments)
+        if (
+            isinstance(tool_calls, list)
+            and len(tool_calls) > 0
+            and isinstance(tool_calls[0], str)
+        ):
             try:
-                tool_calls = json.loads(",".join(tool_calls))
+                tool_calls = json.loads("[" + ",".join(tool_calls) + "]")
             except json.JSONDecodeError:
                 pass
         elif isinstance(tool_calls, str):
@@ -77,6 +87,8 @@ class HardcodedModelAPI(ModelAPI):
                 raise ValueError(f"Invalid tool call: {tool_call}")
             if "tool_name" not in tool_call or "tool_args" not in tool_call:
                 raise ValueError(f"Invalid tool call: {tool_call}")
+            if not isinstance(tool_call.get("tool_args"), dict):
+                raise ValueError(f"Invalid tool_args (must be dict): {tool_call}")
         return tool_calls
 
     def max_connections(self) -> int:

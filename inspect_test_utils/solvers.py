@@ -6,7 +6,8 @@ These solvers execute predetermined sequences of commands, useful for:
 - Integration testing without model API calls
 """
 
-from collections.abc import Callable
+import inspect
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -81,14 +82,14 @@ def hardcoded_python_solver(code_blocks: list[str], timeout: int = 60) -> Solver
 
 
 def inspection_solver(
-    inspector: Callable[[TaskState], dict[str, Any]],
+    inspector: Callable[[TaskState], dict[str, Any] | Awaitable[dict[str, Any]]],
 ) -> Solver:
     """Create a solver that inspects sandbox state without modifying it.
 
     Useful for testing that the sandbox is set up correctly.
 
     Args:
-        inspector: Async function that receives TaskState and returns
+        inspector: Function (sync or async) that receives TaskState and returns
             a dict of inspected values to store in state.metadata.
 
     Returns:
@@ -106,6 +107,9 @@ def inspection_solver(
     def solve() -> Solver:
         async def run(state: TaskState, generate: Generate) -> TaskState:
             results = inspector(state)
+            # Handle both sync and async inspectors
+            if inspect.iscoroutine(results):
+                results = await results
             if isinstance(results, dict):
                 state.metadata["inspection_results"] = results
             return state
